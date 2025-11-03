@@ -26,6 +26,8 @@ where intrinsics.type_is_complex(C)
 make_stockham_plan :: proc(
 	n: int,
 	$C: typeid,
+	allocator:= context.allocator,
+	location := #caller_location,
 ) -> (
 	plan: Stockham_Plan(C),
 	err: runtime.Allocator_Error,
@@ -35,8 +37,8 @@ make_stockham_plan :: proc(
 	else when C == complex64 do F :: f32
 	else do F :: f16
 
-	work := make([]C, n) or_return
-	twiddles := make([]C, n) or_return
+	work := make([]C, n, allocator, location) or_return
+	twiddles := make([]C, n, allocator, location) or_return
 
 	theta0 :F = math.TAU/F(n)
 
@@ -55,10 +57,11 @@ make_stockham_plan :: proc(
 delete_stockham_plan :: proc(
 	plan: Stockham_Plan($C),
 	allocator:=context.allocator,
+	location:= #caller_location,
 ) -> runtime.Allocator_Error {
-	err := delete(plan.work)
+	err := delete(plan.work, allocator, location)
 	if err != .None do return err
-	return delete(plan.twiddles)
+	return delete(plan.twiddles, allocator, location)
 }
 
 
@@ -95,7 +98,8 @@ out_fft_stockham_planned :: proc(
 	else when C == complex64 do F :: f32
 	else do F :: f16
 
-	n := len(x)
+	n := plan.n
+	if len(x) != plan.n do return
 
 	if !verfiy_power(algo, n) do return
 	
@@ -135,10 +139,10 @@ out_fft_stockham_unplanned :: proc(
 {
 	if !verfiy_power(algo, len(x)) do return
 
-	plan, err := make_stockham_plan(len(x), C)
+	plan, err := make_stockham_plan(len(x), C, allocator, location)
 	if err != .None do return
 	
-	defer delete_stockham_plan(plan)
+	defer delete_stockham_plan(plan, allocator, location)
 
 	return out_fft_stockham_planned(
 		algo, x, plan, inverse, allocator, location
@@ -164,7 +168,8 @@ in_fft_stockham_planned :: proc(
 	else when C == complex64 do F :: f32
 	else do F :: f16
 
-	n := len(x)
+	n := plan.n
+	if len(x) != plan.n do return
 
 	if !verfiy_power(algo, n) do return
 
@@ -202,10 +207,10 @@ in_fft_stockham_unplanned :: proc(
 {
 	if !verfiy_power(algo, len(x)) do return
 
-	plan, err := make_stockham_plan(len(x), C)
+	plan, err := make_stockham_plan(len(x), C, allocator, location)
 	if err != .None do return
 
-	defer delete_stockham_plan(plan, allocator)
+	defer delete_stockham_plan(plan, allocator, location)
 
 	return in_fft_stockham_planned(
 		algo, x, plan, inverse, location

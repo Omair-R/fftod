@@ -23,6 +23,8 @@ where intrinsics.type_is_complex(C)
 make_bluestein_plan :: proc(
 	n: int,
 	$C: typeid,
+	allocator := context.allocator,
+	location := #caller_location,
 ) -> (
 	plan: Bluestein_Plan(C),
 	err: runtime.Allocator_Error,
@@ -34,11 +36,11 @@ make_bluestein_plan :: proc(
 
 	nl := int(math.pow(2, math.ceil(math.log2(2*f64(n)))))
 
-	work := make([]C, nl) or_return
-	work_a := make([]C, nl) or_return
-	work_b := make([]C, nl) or_return
-	work_w := make([]C, n) or_return
-	twiddles := make([]C, nl/2) or_return
+	work := make([]C, nl, allocator, location) or_return
+	work_a := make([]C, nl, allocator, location) or_return
+	work_b := make([]C, nl, allocator, location) or_return
+	work_w := make([]C, n, allocator, location) or_return
+	twiddles := make([]C, nl/2, allocator, location) or_return
 
 	theta0 :F = math.TAU/F(nl)
 
@@ -61,16 +63,17 @@ make_bluestein_plan :: proc(
 delete_bluestein_plan :: proc(
 	plan: Bluestein_Plan($C),
 	allocator:=context.allocator,
+	location := #caller_location,
 ) -> runtime.Allocator_Error {
-	err := delete(plan.work)
+	err := delete(plan.work, allocator, location)
 	if err != .None do return err
-	err = delete(plan.work_a)
+	err = delete(plan.work_a, allocator, location)
 	if err != .None do return err
-	err = delete(plan.work_b)
+	err = delete(plan.work_b, allocator, location)
 	if err != .None do return err
-	err = delete(plan.work_w)
+	err = delete(plan.work_w, allocator, location)
 	if err != .None do return err
-	return delete(plan.twiddles)
+	return delete(plan.twiddles, allocator, location)
 }
 
 
@@ -136,6 +139,8 @@ out_fft_bluestein_planned :: proc(
 ) -> ( x_f: []C, ok:bool)
 	where intrinsics.type_is_complex(C) #optional_ok
 {
+	if len(x) != plan.n do return
+	
 	x_f = make([]C, plan.n, allocator, location)
 	copy(x_f, x)
 	
@@ -164,10 +169,10 @@ out_fft_bluestein_unplanned :: proc(
 ) -> ( x_f: []C, ok:bool)
 	where intrinsics.type_is_complex(C) #optional_ok
 {
-	plan, err := make_bluestein_plan(len(x), C)
+	plan, err := make_bluestein_plan(len(x), C, allocator, location)
 	if err != .None do return
 
-	defer delete_bluestein_plan(plan)
+	defer delete_bluestein_plan(plan, allocator, location)
 
 	return out_fft_bluestein_planned(
 		x, plan, inverse, allocator, location
@@ -188,6 +193,7 @@ in_fft_bluestein_planned :: proc(
 ) -> (ok: bool)
 	where intrinsics.type_is_complex(C)
 {
+	if len(x) != plan.n do return
 	if plan.n == 1 do return
 	
 	_inner_fft_bluestein(
@@ -214,10 +220,10 @@ in_fft_bluestein_unplanned :: proc(
 ) -> (ok: bool)
 	where intrinsics.type_is_complex(C)
 {
-	plan, err := make_bluestein_plan(len(x), C)
+	plan, err := make_bluestein_plan(len(x), C, allocator, location)
 	if err != .None do return
 
-	defer delete_bluestein_plan(plan, allocator)
+	defer delete_bluestein_plan(plan, allocator, location)
 
 	in_fft_bluestein_planned(
 		x, plan, inverse, location
