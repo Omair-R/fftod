@@ -21,7 +21,8 @@
 *.a
 *.la
 *.lo
-
+!tests/vendor/fft4g.a
+!tests/vendor/fft4g.lib
 # Shared objects (inc. Windows DLLs)
 *.dll
 *.so
